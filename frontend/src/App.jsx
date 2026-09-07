@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-
+import "./auth.css";
 const API_BASE_URL =
   "https://flowpilot-ai-zcg1.onrender.com";
 
