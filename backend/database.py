@@ -11,9 +11,14 @@ from models import WorkflowHistory
 # =========================================
 
 engine = create_engine(
-    DB_URL,
+    DB_URL.replace(
+        "postgresql://",
+        "postgresql+psycopg://",
+        1,
+    ),
     echo=True,
 )
+
 
 
 # =========================================
