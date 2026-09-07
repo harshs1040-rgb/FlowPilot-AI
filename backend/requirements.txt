@@ -7,3 +7,5 @@ sqlmodel
 psycopg[binary]
 groq
 ddgs
+pwdlib[argon2]
+PyJWT
