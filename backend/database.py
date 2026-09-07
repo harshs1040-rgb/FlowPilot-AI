@@ -3,7 +3,7 @@ import json
 from sqlmodel import SQLModel, Session, create_engine
 
 from config import DB_URL
-from models import WorkflowHistory
+from models import WorkflowHistory, User
 
 
 # =========================================
@@ -18,7 +18,6 @@ engine = create_engine(
     ),
     echo=True,
 )
-
 
 
 # =========================================
@@ -51,3 +50,33 @@ def save_workflow(
         session.refresh(workflow)
 
         return workflow
+
+
+# =========================================
+# USER DATABASE FUNCTIONS
+# =========================================
+
+def get_user_by_email(email: str):
+    from sqlmodel import select
+
+    with Session(engine) as session:
+        statement = select(User).where(User.email == email)
+        return session.exec(statement).first()
+
+
+def create_user(
+    email: str,
+    password_hash: str,
+):
+    with Session(engine) as session:
+
+        user = User(
+            email=email,
+            password_hash=password_hash,
+        )
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+        return user

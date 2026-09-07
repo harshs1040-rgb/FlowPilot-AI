@@ -68,12 +68,30 @@ function App() {
     useState(INITIAL_STATUSES);
 
   // =========================================
-  // LOAD HISTORY FROM POSTGRESQL
+  // AUTHENTICATION STATE
+  // =========================================
+
+  const [authMode, setAuthMode] = useState("login");
+
+  const [isAuthenticated, setIsAuthenticated] =
+    useState(
+      Boolean(localStorage.getItem("flowpilot_token"))
+    );
+
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // =========================================
+  // LOAD HISTORY
   // =========================================
 
   useEffect(() => {
-    loadHistory();
-  }, []);
+    if (isAuthenticated) {
+      loadHistory();
+    }
+  }, [isAuthenticated]);
 
   const loadHistory = async () => {
     setHistoryLoading(true);
@@ -104,7 +122,9 @@ function App() {
         status: item.status,
         result: item.result,
         date: item.created_at
-          ? new Date(item.created_at).toLocaleString()
+          ? new Date(
+              item.created_at
+            ).toLocaleString()
           : "Unknown date",
       }));
 
@@ -126,6 +146,105 @@ function App() {
     } finally {
       setHistoryLoading(false);
     }
+  };
+
+  // =========================================
+  // LOGIN / SIGNUP
+  // =========================================
+
+  const handleAuth = async (event) => {
+    event.preventDefault();
+
+    setAuthError("");
+
+    if (!authEmail.trim() || !authPassword) {
+      setAuthError(
+        "Please enter your email and password."
+      );
+      return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      const endpoint =
+        authMode === "login"
+          ? "/auth/login"
+          : "/auth/signup";
+
+      const response = await fetch(
+        `${API_BASE_URL}${endpoint}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: authEmail.trim(),
+            password: authPassword,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "Authentication failed."
+        );
+      }
+
+      localStorage.setItem(
+        "flowpilot_token",
+        data.access_token
+      );
+
+      localStorage.setItem(
+        "flowpilot_email",
+        data.user.email
+      );
+
+      setIsAuthenticated(true);
+
+      setAuthEmail("");
+      setAuthPassword("");
+      setAuthError("");
+    } catch (error) {
+      console.error(
+        "Authentication error:",
+        error
+      );
+
+      setAuthError(
+        error.message ||
+          "Could not connect to FlowPilot."
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // =========================================
+  // LOGOUT
+  // =========================================
+
+  const handleLogout = () => {
+    localStorage.removeItem(
+      "flowpilot_token"
+    );
+
+    localStorage.removeItem(
+      "flowpilot_email"
+    );
+
+    setIsAuthenticated(false);
+    setAuthMode("login");
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthError("");
+    setTask("");
+    setResult(null);
+    setActivePage("dashboard");
   };
 
   // =========================================
@@ -159,15 +278,24 @@ function App() {
       "agent_start",
       (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message = JSON.parse(
+            event.data
+          );
+
           const agent = message.agent;
 
-          console.log("Agent started:", agent);
+          console.log(
+            "Agent started:",
+            agent
+          );
 
           setCurrentAgent(agent);
 
           setAgentStatuses((previous) => {
-            const updated = { ...previous };
+            const updated = {
+              ...previous,
+            };
+
             const currentIndex =
               AGENT_NAMES.indexOf(agent);
 
@@ -203,10 +331,16 @@ function App() {
       "agent_complete",
       (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message = JSON.parse(
+            event.data
+          );
+
           const agent = message.agent;
 
-          console.log("Agent completed:", agent);
+          console.log(
+            "Agent completed:",
+            agent
+          );
 
           setAgentStatuses((previous) => ({
             ...previous,
@@ -229,7 +363,9 @@ function App() {
       "workflow_complete",
       async (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message = JSON.parse(
+            event.data
+          );
 
           console.log(
             "Workflow completed:",
@@ -246,7 +382,9 @@ function App() {
             "Verification Agent": "Completed",
           });
 
-          setCurrentAgent("Workflow Complete");
+          setCurrentAgent(
+            "Workflow Complete"
+          );
 
           setLoading(false);
 
@@ -308,16 +446,6 @@ function App() {
         error
       );
 
-      if (eventSource.readyState === EventSource.CLOSED) {
-        return;
-      }
-
-      setResult({
-        success: false,
-        error:
-          "Could not connect to the FlowPilot backend.",
-      });
-
       setLoading(false);
       setCurrentAgent("");
 
@@ -354,12 +482,170 @@ function App() {
       "Verification Agent": "Completed",
     });
 
-    setCurrentAgent("Workflow Complete");
+    setCurrentAgent(
+      "Workflow Complete"
+    );
+
     setActivePage("dashboard");
   };
 
   // =========================================
-  // RENDER
+  // AUTH SCREEN
+  // =========================================
+
+  if (!isAuthenticated) {
+    return (
+      <div className="auth-app">
+        <div className="auth-container">
+
+          <div className="auth-brand">
+            <div className="auth-logo">
+              ✦
+            </div>
+
+            <div>
+              <h1>FlowPilot</h1>
+              <p>
+                AI Automation Platform
+              </p>
+            </div>
+          </div>
+
+          <div className="auth-card">
+
+            <div className="auth-header">
+              <p className="eyebrow">
+                {authMode === "login"
+                  ? "WELCOME BACK"
+                  : "GET STARTED"}
+              </p>
+
+              <h2>
+                {authMode === "login"
+                  ? "Sign in to FlowPilot"
+                  : "Create your account"}
+              </h2>
+
+              <p>
+                {authMode === "login"
+                  ? "Access your AI-powered business automation workspace."
+                  : "Create an account and start automating your business workflows."}
+              </p>
+            </div>
+
+            {authError && (
+              <div className="auth-error">
+                ⚠ {authError}
+              </div>
+            )}
+
+            <form
+              className="auth-form"
+              onSubmit={handleAuth}
+            >
+
+              <div className="form-group">
+                <label>
+                  Email address
+                </label>
+
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(event) =>
+                    setAuthEmail(
+                      event.target.value
+                    )
+                  }
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  disabled={authLoading}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>
+                  Password
+                </label>
+
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(event) =>
+                    setAuthPassword(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter your password"
+                  autoComplete={
+                    authMode === "login"
+                      ? "current-password"
+                      : "new-password"
+                  }
+                  disabled={authLoading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="auth-button"
+                disabled={authLoading}
+              >
+                {authLoading
+                  ? "Please wait..."
+                  : authMode === "login"
+                  ? "Sign In"
+                  : "Create Account"}
+              </button>
+
+            </form>
+
+            <div className="auth-switch">
+
+              <span>
+                {authMode === "login"
+                  ? "Don't have an account?"
+                  : "Already have an account?"}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode(
+                    authMode === "login"
+                      ? "signup"
+                      : "login"
+                  );
+
+                  setAuthError("");
+                }}
+              >
+                {authMode === "login"
+                  ? "Create account"
+                  : "Sign in"}
+              </button>
+
+            </div>
+
+          </div>
+
+          <div className="auth-footer">
+            <span>
+              FlowPilot AI
+            </span>
+
+            <span>
+              Multi-Agent Business Automation
+            </span>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================
+  // MAIN APPLICATION
   // =========================================
 
   return (
@@ -376,8 +662,13 @@ function App() {
           </div>
 
           <div>
-            <h2>FlowPilot</h2>
-            <span>AI Automation</span>
+            <h2>
+              FlowPilot
+            </h2>
+
+            <span>
+              AI Automation
+            </span>
           </div>
 
         </div>
@@ -487,9 +778,26 @@ function App() {
                   FP
                 </div>
 
-                <span>
-                  Workspace
-                </span>
+                <div className="profile-info">
+
+                  <span>
+                    {localStorage.getItem(
+                      "flowpilot_email"
+                    ) || "Workspace"}
+                  </span>
+
+                  <small>
+                    FlowPilot Account
+                  </small>
+
+                </div>
+
+                <button
+                  className="logout-button"
+                  onClick={handleLogout}
+                >
+                  Logout
+                </button>
 
               </div>
 
@@ -1174,9 +1482,9 @@ function App() {
   );
 }
 
-/* =========================================
-   PAGE HEADER
-========================================= */
+// =========================================
+// PAGE HEADER
+// =========================================
 
 function PageHeader({
   eyebrow,
@@ -1208,9 +1516,19 @@ function PageHeader({
           FP
         </div>
 
-        <span>
-          Workspace
-        </span>
+        <div className="profile-info">
+
+          <span>
+            {localStorage.getItem(
+              "flowpilot_email"
+            ) || "Workspace"}
+          </span>
+
+          <small>
+            FlowPilot Account
+          </small>
+
+        </div>
 
       </div>
 
@@ -1218,9 +1536,9 @@ function PageHeader({
   );
 }
 
-/* =========================================
-   INFO CARD
-========================================= */
+// =========================================
+// INFO CARD
+// =========================================
 
 function InfoCard({
   icon,
@@ -1258,9 +1576,9 @@ function InfoCard({
   );
 }
 
-/* =========================================
-   AGENT CARD
-========================================= */
+// =========================================
+// AGENT CARD
+// =========================================
 
 function AgentCard({
   number,
@@ -1311,9 +1629,9 @@ function AgentCard({
   );
 }
 
-/* =========================================
-   RESULT CARD
-========================================= */
+// =========================================
+// RESULT CARD
+// =========================================
 
 function ResultCard({
   title,
@@ -1352,9 +1670,9 @@ function ResultCard({
   );
 }
 
-/* =========================================
-   SOURCES CARD
-========================================= */
+// =========================================
+// SOURCES CARD
+// =========================================
 
 function SourcesCard({
   sources = [],
@@ -1425,9 +1743,9 @@ function SourcesCard({
   );
 }
 
-/* =========================================
-   DOWNLOAD REPORT
-========================================= */
+// =========================================
+// DOWNLOAD REPORT
+// =========================================
 
 function downloadReport(result, task) {
   if (!result) {

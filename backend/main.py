@@ -2,18 +2,46 @@
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
-from database import create_db_and_tables, save_workflow
+from database import (
+    create_db_and_tables,
+    save_workflow,
+    get_user_by_email,
+    create_user,
+)
+
 from models import WorkflowHistory
+
+from auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+)
+
 
 from agents.orchestrator import orchestrator_agent
 from agents.planner import planner_agent
 from agents.research import research_agent
 from agents.marketing import marketing_agent
 from agents.verifier import verifier_agent
+
+
+# =========================================
+# AUTH REQUEST MODELS
+# =========================================
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 # =========================================
@@ -77,6 +105,98 @@ def health():
     return {
         "status": "healthy",
         "service": "FlowPilot AI",
+    }
+
+
+# =========================================
+# SIGNUP
+# =========================================
+
+@app.post("/auth/signup")
+def signup(request: SignupRequest):
+
+    email = request.email.strip().lower()
+    password = request.password
+
+    if not email or "@" not in email:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a valid email address.",
+        )
+
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long.",
+        )
+
+    existing_user = get_user_by_email(email)
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email already exists.",
+        )
+
+    password_hash = hash_password(password)
+
+    user = create_user(
+        email=email,
+        password_hash=password_hash,
+    )
+
+    access_token = create_access_token(user.id)
+
+    return {
+        "success": True,
+        "message": "Account created successfully.",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+        },
+    }
+
+
+# =========================================
+# LOGIN
+# =========================================
+
+@app.post("/auth/login")
+def login(request: LoginRequest):
+
+    email = request.email.strip().lower()
+    password = request.password
+
+    user = get_user_by_email(email)
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password.",
+        )
+
+    if not verify_password(
+        password,
+        user.password_hash,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password.",
+        )
+
+    access_token = create_access_token(user.id)
+
+    return {
+        "success": True,
+        "message": "Login successful.",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+        },
     }
 
 
