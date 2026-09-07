@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 
+const API_BASE_URL =
+  "https://flowpilot-ai-zcg1.onrender.com";
+
 const AGENTS = [
   {
     number: "01",
@@ -78,7 +81,7 @@ function App() {
 
     try {
       const response = await fetch(
-        "http://127.0.0.1:8000/history"
+        `${API_BASE_URL}/history`
       );
 
       if (!response.ok) {
@@ -88,6 +91,12 @@ function App() {
       }
 
       const data = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error(
+          "History API returned an unexpected response."
+        );
+      }
 
       const formattedHistory = data.map((item) => ({
         id: item.id,
@@ -139,7 +148,7 @@ function App() {
     );
 
     const eventSource = new EventSource(
-      `http://127.0.0.1:8000/run-stream?task=${encodedTask}`
+      `${API_BASE_URL}/run-stream?task=${encodedTask}`
     );
 
     // =========================================
@@ -237,15 +246,12 @@ function App() {
             "Verification Agent": "Completed",
           });
 
-          setCurrentAgent(
-            "Workflow Complete"
-          );
+          setCurrentAgent("Workflow Complete");
 
           setLoading(false);
 
           eventSource.close();
 
-          // Refresh history from PostgreSQL
           await loadHistory();
         } catch (error) {
           console.error(
@@ -301,6 +307,16 @@ function App() {
         "SSE connection error:",
         error
       );
+
+      if (eventSource.readyState === EventSource.CLOSED) {
+        return;
+      }
+
+      setResult({
+        success: false,
+        error:
+          "Could not connect to the FlowPilot backend.",
+      });
 
       setLoading(false);
       setCurrentAgent("");
@@ -1158,7 +1174,6 @@ function App() {
   );
 }
 
-
 /* =========================================
    PAGE HEADER
 ========================================= */
@@ -1203,7 +1218,6 @@ function PageHeader({
   );
 }
 
-
 /* =========================================
    INFO CARD
 ========================================= */
@@ -1243,7 +1257,6 @@ function InfoCard({
     </div>
   );
 }
-
 
 /* =========================================
    AGENT CARD
@@ -1298,7 +1311,6 @@ function AgentCard({
   );
 }
 
-
 /* =========================================
    RESULT CARD
 ========================================= */
@@ -1339,7 +1351,6 @@ function ResultCard({
     </div>
   );
 }
-
 
 /* =========================================
    SOURCES CARD
@@ -1413,7 +1424,6 @@ function SourcesCard({
     </div>
   );
 }
-
 
 /* =========================================
    DOWNLOAD REPORT
