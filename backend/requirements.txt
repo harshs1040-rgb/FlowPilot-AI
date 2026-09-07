@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+openai
+google-genai
+sqlmodel
+psycopg[binary]
+groq
+ddgs
